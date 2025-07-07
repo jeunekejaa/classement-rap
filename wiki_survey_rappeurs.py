@@ -1,49 +1,65 @@
 import streamlit as st
 import random
-import itertools
 import pandas as pd
 
-st.set_page_config(page_title="Classement Rap", layout="centered")
-st.title("🎤 Classe ton top 20 de rappeurs francophones")
+st.set_page_config(page_title="Classement Rap Optimisé", layout="centered")
+st.title("⚡ Classe ton top 20 de rappeurs (duels optimisés)")
 
-# Liste des rappeurs
 rappers = [
     "Booba", "Ninho", "Alpha Wann", "Nekfeu", "Damso", "La Fêve", "Zamdane", "Caballero",
     "Khali", "Laylow", "SCH", "Theodora", "Mairo", "Hamza", "Yvnnis", "NeS", "Luther",
     "Bekar", "Karmen", "H Jeunecrack"
 ]
 
-# Initialiser session state
-if "pairs" not in st.session_state:
-    st.session_state.pairs = list(itertools.combinations(rappers, 2))
-    random.shuffle(st.session_state.pairs)
-    st.session_state.index = 0
-    st.session_state.scores = {rapper: 0 for rapper in rappers}
+# Fonction de tri personnalisé avec fusion (merge sort)
+def merge_sort_duel(array):
+    if len(array) <= 1:
+        return array
+    mid = len(array) // 2
+    left = merge_sort_duel(array[:mid])
+    right = merge_sort_duel(array[mid:])
+    return merge(left, right)
 
-# Affichage des duels
-if st.session_state.index < len(st.session_state.pairs):
-    a, b = st.session_state.pairs[st.session_state.index]
-    st.markdown(f"## Duel {st.session_state.index + 1} / {len(st.session_state.pairs)}")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button(a):
-            st.session_state.scores[a] += 1
-            st.session_state.index += 1
-            st.rerun()
-    with col2:
-        if st.button(b):
-            st.session_state.scores[b] += 1
-            st.session_state.index += 1
-            st.rerun()
-else:
-    # Résultats finaux
-    st.success("Tu as complété tous les duels ! Voici ton classement :")
-    sorted_scores = sorted(st.session_state.scores.items(), key=lambda x: x[1], reverse=True)
-    df = pd.DataFrame(sorted_scores, columns=["Rappeur", "Score"])
+# Merge avec intervention utilisateur
+def merge(left, right):
+    result = []
+    i = j = 0
+
+    while i < len(left) and j < len(right):
+        st.markdown(f"### Qui préfères-tu ?")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button(left[i], key=f"{left[i]} vs {right[j]} - L"):
+                st.session_state.duel_result.append((left[i], right[j]))
+                result.append(left[i])
+                i += 1
+                st.rerun()
+        with col2:
+            if st.button(right[j], key=f"{left[i]} vs {right[j]} - R"):
+                st.session_state.duel_result.append((right[j], left[i]))
+                result.append(right[j])
+                j += 1
+                st.rerun()
+        st.stop()  # attendre la réponse avant de continuer
+
+    result += left[i:]
+    result += right[j:]
+    return result
+
+# Initialisation
+if "sorted_list" not in st.session_state:
+    st.session_state.duel_result = []
+    st.session_state.sorted_list = merge_sort_duel(random.sample(rappers, len(rappers)))
+
+# Classement final
+if len(st.session_state.duel_result) >= len(rappers) * int((len(rappers)).bit_length()):
+    st.success("Classement complété avec succès !")
+    final_ranking = st.session_state.sorted_list
+    df = pd.DataFrame({"Rang": list(range(1, len(final_ranking)+1)), "Rappeur": final_ranking})
     st.dataframe(df, use_container_width=True)
-    st.download_button("📥 Télécharger le classement en CSV", df.to_csv(index=False), file_name="classement_rappeurs.csv")
+    st.download_button("📥 Télécharger en CSV", df.to_csv(index=False), file_name="classement_rappeurs.csv")
 
     if st.button("🔁 Recommencer"):
-        for key in ["pairs", "index", "scores"]:
+        for key in ["sorted_list", "duel_result"]:
             del st.session_state[key]
         st.rerun()
