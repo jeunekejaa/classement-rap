@@ -29,21 +29,21 @@ if 'sorted_list' not in st.session_state:
     st.session_state.inserting = False
     st.session_state.duel_count = 0
 
-# Checkbox pour afficher le classement
-display = st.checkbox("Afficher classement", value=False)
 # Calcul de la progression
 done = st.session_state.duel_count
 progress = int(100 * min(done, total_needed) / total_needed)
 
+# Affichage constant de la progression
+st.markdown(f"**Progression : {progress}%**")
+st.progress(progress)
+
 # Affichage du classement si demandé
+display = st.checkbox("Afficher classement", value=False)
 if display:
-    st.markdown(f"**Progression : {progress}%**")
-    st.progress(progress)
     if done < total_needed:
         st.info("🔍 Classement en construction – plus tu votes, plus il sera précis.")
     else:
         st.success("✅ Classement complet et fiable !")
-    # Affichage du classement sans colonne Rang
     df = pd.DataFrame({"Rappeur": st.session_state.sorted_list})
     st.dataframe(df["Rappeur"], use_container_width=True)
     if done >= total_needed:
@@ -52,8 +52,9 @@ if display:
 # Phase de duel pour insertion
 if st.session_state.remaining:
     if not st.session_state.inserting:
-        # Initialiser un nouvel élément à insérer
-        st.session_state.current = st.session_state.remaining.pop(0)
+        # Choix aléatoire de l'élément à insérer
+        idx = random.randrange(len(st.session_state.remaining))
+        st.session_state.current = st.session_state.remaining.pop(idx)
         st.session_state.low = 0
         st.session_state.high = len(st.session_state.sorted_list)
         st.session_state.inserting = True
@@ -79,7 +80,7 @@ if st.session_state.remaining:
         with col2:
             if st.button(b, key=f"b_{a}_{b}"):
                 st.session_state.duel_count += 1
-                # b >= a : insérer après b
+                # b ≥ a : insérer après b
                 st.session_state.low = mid + 1
                 if st.session_state.low >= st.session_state.high:
                     st.session_state.sorted_list.insert(st.session_state.low, a)
