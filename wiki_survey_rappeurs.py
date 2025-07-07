@@ -18,27 +18,21 @@ rappers = [
 # Nombre optimal de duels (~ n·log₂(n))
 total_needed = math.ceil(len(rappers) * math.log2(len(rappers)))
 
-# Fonction de tri personnalisé (merge sort interactif)
-def merge_sort_duel(array):
-    if len(array) <= 1:
-        return array
-    mid = len(array) // 2
-    left = merge_sort_duel(array[:mid])
-    right = merge_sort_duel(array[mid:])
-    return left, right
-
 # Initialisation de l'état
-if 'duel_result' not in st.session_state or 'stack' not in st.session_state:
+if 'sorted_list' not in st.session_state:
     shuffled = random.sample(rappers, len(rappers))
-    # stack contient soit tuple (left, right) à fusionner, soit segments fusionnés
-    st.session_state.stack = [merge_sort_duel(shuffled)]
-    st.session_state.duel_result = []
-    st.session_state.sorted = False
+    st.session_state.sorted_list = [shuffled.pop(0)]
+    st.session_state.remaining = shuffled[:]  # éléments à insérer
+    st.session_state.current = None
+    st.session_state.low = 0
+    st.session_state.high = 0
+    st.session_state.inserting = False
+    st.session_state.duel_count = 0
 
-# Checkbox pour consulter le classement
+# Checkbox pour afficher le classement
 display = st.checkbox("Afficher classement", value=False)
 # Calcul de la progression
-done = len(st.session_state.duel_result)
+done = st.session_state.duel_count
 progress = int(100 * min(done, total_needed) / total_needed)
 
 # Affichage du classement si demandé
@@ -49,49 +43,54 @@ if display:
         st.info("🔍 Classement en construction – plus tu votes, plus il sera précis.")
     else:
         st.success("✅ Classement complet et fiable !")
-    df = pd.DataFrame({"Rappeur": st.session_state.get('sorted_list', [])})
+    # Affichage du classement sans colonne Rang
+    df = pd.DataFrame({"Rappeur": st.session_state.sorted_list})
     st.dataframe(df["Rappeur"], use_container_width=True)
     if done >= total_needed:
         st.download_button("📥 Télécharger en CSV", df.to_csv(index=False), file_name="classement_rappeurs.csv")
 
-# Phase de duel si le tri n'est pas terminé et qu'on n'affiche pas uniquement le classement
-if not st.session_state.sorted and not display:
-    left, right = st.session_state.stack.pop(0)
-    left = left if isinstance(left, list) else [left]
-    right = right if isinstance(right, list) else [right]
-    i = j = 0
-    result = []
-    # Duel interactif
-    while i < len(left) and j < len(right):
+# Phase de duel pour insertion
+if st.session_state.remaining:
+    if not st.session_state.inserting:
+        # Initialiser un nouvel élément à insérer
+        st.session_state.current = st.session_state.remaining.pop(0)
+        st.session_state.low = 0
+        st.session_state.high = len(st.session_state.sorted_list)
+        st.session_state.inserting = True
+
+    if st.session_state.inserting:
+        a = st.session_state.current
+        low = st.session_state.low
+        high = st.session_state.high
+        mid = (low + high) // 2
+        b = st.session_state.sorted_list[mid]
+
         st.markdown("### Qui préfères-tu ?")
         col1, col2 = st.columns(2)
-        a, b = left[i], right[j]
         with col1:
-            if st.button(a, key=f"L{a}_{b}"):
-                st.session_state.duel_result.append((a, b))
-                result.append(a)
-                i += 1
+            if st.button(a, key=f"a_{a}_{b}"):
+                st.session_state.duel_count += 1
+                # a > b : insérer avant b
+                st.session_state.high = mid
+                if st.session_state.low >= st.session_state.high:
+                    st.session_state.sorted_list.insert(st.session_state.low, a)
+                    st.session_state.inserting = False
                 st.experimental_rerun()
         with col2:
-            if st.button(b, key=f"R{a}_{b}"):
-                st.session_state.duel_result.append((b, a))
-                result.append(b)
-                j += 1
+            if st.button(b, key=f"b_{a}_{b}"):
+                st.session_state.duel_count += 1
+                # b >= a : insérer après b
+                st.session_state.low = mid + 1
+                if st.session_state.low >= st.session_state.high:
+                    st.session_state.sorted_list.insert(st.session_state.low, a)
+                    st.session_state.inserting = False
                 st.experimental_rerun()
-        st.stop()
-    # Ajouter le reste et continuer le tri
-    result += left[i:] + right[j:]
-    st.session_state.stack.append(result)
-    # Si un seul segment reste, tri terminé
-    if len(st.session_state.stack) == 1 and not any(isinstance(x, tuple) for x in st.session_state.stack):
-        st.session_state.sorted_list = st.session_state.stack[0]
-        st.session_state.sorted = True
 
 # Message final et bouton recommencer
-if st.session_state.get('sorted', False):
+if not st.session_state.remaining and not st.session_state.inserting:
     st.success("🎉 Tri terminé !")
     if st.button("🔁 Recommencer"):
-        for k in ['duel_result', 'stack', 'sorted', 'sorted_list']:
-            if k in st.session_state:
-                del st.session_state[k]
+        for key in ['sorted_list', 'remaining', 'current', 'low', 'high', 'inserting', 'duel_count']:
+            if key in st.session_state:
+                del st.session_state[key]
         st.experimental_rerun()
