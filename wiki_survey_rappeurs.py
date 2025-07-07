@@ -29,12 +29,12 @@ if st.session_state.index < len(st.session_state.pairs):
         if st.button(a):
             st.session_state.scores[a] += 1
             st.session_state.index += 1
-            st.experimental_rerun()
+            st.rerun()
     with col2:
         if st.button(b):
             st.session_state.scores[b] += 1
             st.session_state.index += 1
-            st.experimental_rerun()
+            st.rerun()
 else:
     # Résultats finaux
     st.success("Tu as complété tous les duels ! Voici ton classement :")
@@ -46,4 +46,4 @@ else:
     if st.button("🔁 Recommencer"):
         for key in ["pairs", "index", "scores"]:
             del st.session_state[key]
-        st.experimental_rerun()
+        st.rerun()
