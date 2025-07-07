@@ -1,118 +1,101 @@
 import streamlit as st
 import random
 import pandas as pd
+import math
 
+# Configuration de la page
 st.set_page_config(page_title="Classement Rap Optimisé", layout="centered")
 st.title("⚡ Classe ton top 20 de rappeurs (duels optimisés)")
 
+# Liste des rappeurs
 rappers = [
-    "Booba", "Ninho", "Alpha Wann", "Nekfeu", "Damso", "La Fêve", "Zamdane", "Caballero",
-    "Khali", "Laylow", "SCH", "Theodora", "Mairo", "Hamza", "Yvnnis", "NeS", "Luther",
-    "Bekar", "Karmen", "H Jeunecrack"
+    "Booba", "Ninho", "Alpha Wann", "Nekfeu", "Damso",
+    "La Fêve", "Zamdane", "Caballero", "Khali", "Laylow",
+    "SCH", "Theodora", "Mairo", "Hamza", "Yvnnis",
+    "NeS", "Luther", "Bekar", "Karmen", "H Jeunecrack"
 ]
 
-# Fonction de tri personnalisé avec fusion (merge sort)
-def merge_sort_duel(array):
-    if len(array) <= 1:
-        return array
-    mid = len(array) // 2
-    left = merge_sort_duel(array[:mid])
-    right = merge_sort_duel(array[mid:])
-    return [left, right]  # ne fusionne pas tout de suite
+# Nombre de comparaisons optimales (approx. n·log₂(n))
+total_needed = math.ceil(len(rappers) * math.log2(len(rappers)))
 
-# Initialisation
-if "stack" not in st.session_state:
+# Initialisation de l'état
+if 'sorted_list' not in st.session_state:
     shuffled = random.sample(rappers, len(rappers))
-    st.session_state.stack = [merge_sort_duel(shuffled)]
-    st.session_state.results = []
-    st.session_state.duel_result = []
+    st.session_state.sorted_list = [shuffled.pop(0)]  # première liste triée
+    st.session_state.remaining = shuffled           # reste à insérer
+    st.session_state.current = None
+    st.session_state.low = 0
+    st.session_state.high = 0
+    st.session_state.inserting = False
+    st.session_state.duel_count = 0
 
-# Fonction de fusion interactive
-def step_merge():
-    stack = st.session_state.stack
-    results = st.session_state.results
+# Phase de duel pour insertion (tri par insertion binaire)
+if st.session_state.remaining:
+    # Démarre l'insertion d'un nouvel élément si nécessaire
+    if not st.session_state.inserting:
+        st.session_state.current = st.session_state.remaining.pop(0)
+        st.session_state.low = 0
+        st.session_state.high = len(st.session_state.sorted_list)
+        st.session_state.inserting = True
 
-    while stack:
-        top = stack[-1]
+    # Tant que l'élément n'est pas inséré
+    if st.session_state.inserting:
+        a = st.session_state.current
+        low = st.session_state.low
+        high = st.session_state.high
+        mid = (low + high) // 2
+        b = st.session_state.sorted_list[mid]
 
-        # Si sous-liste fusionnable
-        if isinstance(top, list) and len(top) == 2 and all(isinstance(x, list) == False for x in top):
-            left, right = top
-            if not left:
-                stack.pop()
-                results.append(right)
-            elif not right:
-                stack.pop()
-                results.append(left)
-            else:
-                a, b = left[0], right[0]
-                st.markdown("### Qui préfères-tu ?")
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button(a):
-                        st.session_state.duel_result.append((a, b))
-                        stack[-1][0] = left[1:]
-                        stack[-1][1] = right
-                        results.append([a])
-                        st.rerun()
-                with col2:
-                    if st.button(b):
-                        st.session_state.duel_result.append((b, a))
-                        stack[-1][0] = left
-                        stack[-1][1] = right[1:]
-                        results.append([b])
-                        st.rerun()
-                return  # afficher un duel 
-        elif isinstance(top, list):
-            # Fusionner les deux dernières sous-listes si possible
-            if len(top) == 2 and all(isinstance(x, list) for x in top):
-                stack.pop()
-                stack.append(top[0] + top[1])
-            else:
-                break
-        else:
-            stack.pop()
-            results.append(top)
+        st.markdown("### Qui préfères-tu ?")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button(a, key="duel_a"):
+                st.session_state.duel_count += 1
+                # a > b → insérer avant b
+                st.session_state.high = mid
+                if st.session_state.low >= st.session_state.high:
+                    pos = st.session_state.low
+                    st.session_state.sorted_list.insert(pos, a)
+                    st.session_state.inserting = False
+                st.rerun()
+        with col2:
+            if st.button(b, key="duel_b"):
+                st.session_state.duel_count += 1
+                # b ≥ a → insérer après b
+                st.session_state.low = mid + 1
+                if st.session_state.low >= st.session_state.high:
+                    pos = st.session_state.low
+                    st.session_state.sorted_list.insert(pos, a)
+                    st.session_state.inserting = False
+                st.rerun()
 
-    if not stack and len(results) == 1:
-        st.session_state.sorted_list = results[0]
+# Calcul de la progression
+done = st.session_state.duel_count
+progress = int(100 * min(done, total_needed) / total_needed)
 
-# Appel de fusion
-step_merge()
-
-# Calcul du classement
-total_needed = len(rappers) * int((len(rappers)).bit_length())
-done = len(st.session_state.duel_result)
-progress = int(100 * done / total_needed)
-
-# Bouton de consultation dynamique
-button_label = "📊 Consulter votre classement actuel"
-if done >= total_needed:
-    button_label = "✅ Classement complet"
-
+# Bouton de consultation toujours visible
+button_label = "📊 Consulter votre classement actuel" if done < total_needed else "✅ Classement complet"
 if st.button(button_label):
     st.markdown(f"### Progression : {progress}%")
     st.progress(progress)
-
-    if done >= total_needed:
-        st.success("✅ Tu as atteint le nombre minimal de duels pour un classement fiable.")
+    if done < total_needed:
+        st.info("🔍 Classement en construction – plus tu votes, plus il sera précis.")
     else:
-        st.info("🔍 Ce classement est en construction. En continuant, tu amélioreras sa précision.")
+        st.success("🎉 Classement complet et fiable !")
+    # Affichage du classement courant
+    df_live = pd.DataFrame({
+        "Rang": list(range(1, len(st.session_state.sorted_list) + 1)),
+        "Rappeur": st.session_state.sorted_list
+    })
+    st.dataframe(df_live, use_container_width=True)
+    # Téléchargement si terminé
+    if done >= total_needed:
+        st.download_button("📥 Télécharger en CSV", df_live.to_csv(index=False), file_name="classement_rappeurs.csv")
 
-    if "sorted_list" in st.session_state:
-        classement_actuel = st.session_state.sorted_list
-        df_live = pd.DataFrame({"Rang": list(range(1, len(classement_actuel)+1)), "Rappeur": classement_actuel})
-        st.dataframe(df_live, use_container_width=True)
-
-# Classement final
-if done >= total_needed and "sorted_list" in st.session_state:
-    st.success("Tu as complété suffisamment de duels pour produire un classement fiable !")
-    final_ranking = st.session_state.sorted_list
-    df = pd.DataFrame({"Rang": list(range(1, len(final_ranking)+1)), "Rappeur": final_ranking})
-    st.dataframe(df, use_container_width=True)
-    st.download_button("📥 Télécharger en CSV", df.to_csv(index=False), file_name="classement_rappeurs.csv")
-
+# Message final si terminé
+if done >= total_needed and not st.session_state.inserting:
+    st.success("✅ Tu as complété tous les duels nécessaires pour un classement fiable !")
     if st.button("🔁 Recommencer"):
-        for key in ["sorted_list", "duel_result", "stack", "results"]:
+        for key in ['sorted_list','remaining','current','low','high','inserting','duel_count']:
             del st.session_state[key]
         st.rerun()
