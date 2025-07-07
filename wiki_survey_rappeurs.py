@@ -3,9 +3,14 @@ import random
 import pandas as pd
 import math
 
-# Configuration de la page
-st.set_page_config(page_title="Classement Rap Optimisé", layout="centered")
-st.title("⚡ Classe ton top 20 de rappeurs (duels optimisés)")
+# Config page
+st.set_page_config(page_title="Classement Rap par Elo", layout="centered")
+st.title("🏆 Classement Rap par Elo")
+
+# Paramètres élévation
+K = 32
+threshold = st.sidebar.slider("Seuil de stabilité (points)", min_value=0.0, max_value=10.0, value=1.0, step=0.5)
+st.sidebar.markdown("Le classement s'arrête quand la variation moyenne des 10 derniers duels < seuil.")
 
 # Liste des rappeurs
 rappers = [
@@ -15,83 +20,72 @@ rappers = [
     "NeS", "Luther", "Bekar", "Karmen", "H Jeunecrack"
 ]
 
-# Nombre optimal de duels (~ n·log₂(n))
-total_needed = math.ceil(len(rappers) * math.log2(len(rappers)))
+# Initialisation
+if 'ratings' not in st.session_state:
+    st.session_state.ratings = {r: 1500.0 for r in rappers}
+    st.session_state.history = []
+    st.session_state.stable = False
+    st.session_state.duel = None
 
-# Initialisation de l'état
-if 'sorted_list' not in st.session_state:
-    shuffled = random.sample(rappers, len(rappers))
-    st.session_state.sorted_list = [shuffled.pop(0)]
-    st.session_state.remaining = shuffled[:]  # éléments à insérer
-    st.session_state.current = None
-    st.session_state.low = 0
-    st.session_state.high = 0
-    st.session_state.inserting = False
-    st.session_state.duel_count = 0
+# Choix duel
+if not st.session_state.stable:
+    st.session_state.duel = random.sample(rappers, 2)
 
-# Calcul de la progression
-done = st.session_state.duel_count
-progress = int(100 * min(done, total_needed) / total_needed)
+# Affichage duel
+if not st.session_state.stable and st.session_state.duel:
+    a, b = st.session_state.duel
+    st.markdown(f"### Qui préfères-tu ?")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button(a, key=f"win_{a}"):
+            winner, loser = a, b
+            st.rerun()
+    with col2:
+        if st.button(b, key=f"win_{b}"):
+            winner, loser = b, a
+            st.rerun()
+    st.stop()
 
-# Affichage constant de la progression
-st.markdown(f"**Progression : {progress}%**")
-st.progress(progress)
+# Mise à jour Elo
+if 'winner' in locals():
+    Ra = st.session_state.ratings[winner]
+    Rb = st.session_state.ratings[loser]
+    Ea = 1 / (1 + 10 ** ((Rb - Ra) / 400))
+    Eb = 1 - Ea
+    delta_a = K * (1 - Ea)
+    delta_b = K * (0 - Eb)
+    st.session_state.ratings[winner] += delta_a
+    st.session_state.ratings[loser] += delta_b
+    change = abs(delta_a) + abs(delta_b)
+    st.session_state.history.append(change)
+    # Check stabilité
+    if len(st.session_state.history) >= 10:
+        avg_change = sum(st.session_state.history[-10:]) / 10
+        if avg_change < threshold:
+            st.session_state.stable = True
+    # Reset duel
+    del winner, loser
 
-# Affichage du classement si demandé
-display = st.checkbox("Afficher classement", value=False)
-if display:
-    if done < total_needed:
-        st.info("🔍 Classement en construction – plus tu votes, plus il sera précis.")
-    else:
-        st.success("✅ Classement complet et fiable !")
-    df = pd.DataFrame({"Rappeur": st.session_state.sorted_list})
-    st.dataframe(df["Rappeur"], use_container_width=True)
-    if done >= total_needed:
-        st.download_button("📥 Télécharger en CSV", df.to_csv(index=False), file_name="classement_rappeurs.csv")
+# Affichage progression et statut
+if st.session_state.stable:
+    st.success("✅ Classement stable atteint !")
+else:
+    if st.session_state.history:
+        last_changes = st.session_state.history[-10:]
+        avg = sum(last_changes) / len(last_changes)
+        st.info(f"Variation moyenne (10 derniers duels) : {avg:.2f} points")
 
-# Phase de duel pour insertion
-if st.session_state.remaining:
-    if not st.session_state.inserting:
-        # Choix aléatoire de l'élément à insérer
-        idx = random.randrange(len(st.session_state.remaining))
-        st.session_state.current = st.session_state.remaining.pop(idx)
-        st.session_state.low = 0
-        st.session_state.high = len(st.session_state.sorted_list)
-        st.session_state.inserting = True
+# Afficher classement
+if st.checkbox("Afficher classement", value=True):
+    ranked = sorted(st.session_state.ratings.items(), key=lambda x: x[1], reverse=True)
+    df = pd.DataFrame(ranked, columns=["Rappeur", "Elo"])
+    st.dataframe(df, use_container_width=True)
+    if st.session_state.stable:
+        st.download_button("📥 Télécharger CSV", df.to_csv(index=False), file_name="classement_rappeurs_elo.csv")
 
-    if st.session_state.inserting:
-        a = st.session_state.current
-        low = st.session_state.low
-        high = st.session_state.high
-        mid = (low + high) // 2
-        b = st.session_state.sorted_list[mid]
-
-        st.markdown("### Qui préfères-tu ?")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button(a, key=f"a_{a}_{b}"):
-                st.session_state.duel_count += 1
-                # a > b : insérer avant b
-                st.session_state.high = mid
-                if st.session_state.low >= st.session_state.high:
-                    st.session_state.sorted_list.insert(st.session_state.low, a)
-                    st.session_state.inserting = False
-                st.rerun()
-        with col2:
-            if st.button(b, key=f"b_{a}_{b}"):
-                st.session_state.duel_count += 1
-                # b ≥ a : insérer après b
-                st.session_state.low = mid + 1
-                if st.session_state.low >= st.session_state.high:
-                    st.session_state.sorted_list.insert(st.session_state.low, a)
-                    st.session_state.inserting = False
-                st.rerun()
-
-# Message final et bouton recommencer
-if not st.session_state.remaining and not st.session_state.inserting:
-    st.success("🎉 Tri terminé !")
-    if st.button("🔁 Recommencer"):
-        for key in ['sorted_list', 'remaining', 'current', 'low', 'high', 'inserting', 'duel_count']:
-            if key in st.session_state:
-                del st.session_state[key]
-        st.rerun()
+# Réinitialiser
+if st.button("🔁 Réinitialiser"):
+    for key in ['ratings', 'history', 'stable', 'duel']:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.rerun()
