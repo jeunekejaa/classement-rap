@@ -75,7 +75,7 @@ if st.session_state.remaining:
                 if st.session_state.low >= st.session_state.high:
                     st.session_state.sorted_list.insert(st.session_state.low, a)
                     st.session_state.inserting = False
-                st.experimental_rerun()
+                st.rerun()
         with col2:
             if st.button(b, key=f"b_{a}_{b}"):
                 st.session_state.duel_count += 1
@@ -84,7 +84,7 @@ if st.session_state.remaining:
                 if st.session_state.low >= st.session_state.high:
                     st.session_state.sorted_list.insert(st.session_state.low, a)
                     st.session_state.inserting = False
-                st.experimental_rerun()
+                st.rerun()
 
 # Message final et bouton recommencer
 if not st.session_state.remaining and not st.session_state.inserting:
@@ -93,4 +93,4 @@ if not st.session_state.remaining and not st.session_state.inserting:
         for key in ['sorted_list', 'remaining', 'current', 'low', 'high', 'inserting', 'duel_count']:
             if key in st.session_state:
                 del st.session_state[key]
-        st.experimental_rerun()
+        st.rerun()
