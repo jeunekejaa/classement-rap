@@ -51,24 +51,31 @@ if "sorted_list" not in st.session_state:
     st.session_state.duel_result = []
     st.session_state.sorted_list = merge_sort_duel(random.sample(rappers, len(rappers)))
 
-# Affichage du classement à tout moment
-with st.expander("📊 Consulter votre classement actuel"):
-    total_needed = len(rappers) * int((len(rappers)).bit_length())
-    done = len(st.session_state.duel_result)
-    progress = int(100 * done / total_needed)
+# Calcul du classement
+total_needed = len(rappers) * int((len(rappers)).bit_length())
+done = len(st.session_state.duel_result)
+progress = int(100 * done / total_needed)
+
+# Bouton de consultation dynamique
+button_label = "📊 Consulter votre classement actuel"
+if done >= total_needed:
+    button_label = "✅ Classement complet"
+
+if st.button(button_label):
+    st.markdown(f"### Progression : {progress}%")
     st.progress(progress)
 
     if done >= total_needed:
-        st.success("✅ Classement complet")
+        st.success("✅ Tu as atteint le nombre minimal de duels pour un classement fiable.")
     else:
-        st.info("Le classement est en cours de construction. Plus tu votes, plus il sera précis.")
+        st.info("🔍 Ce classement est en construction. En continuant, tu amélioreras sa précision.")
 
     classement_actuel = st.session_state.sorted_list
     df_live = pd.DataFrame({"Rang": list(range(1, len(classement_actuel)+1)), "Rappeur": classement_actuel})
     st.dataframe(df_live, use_container_width=True)
 
 # Classement final une fois les duels suffisants
-if len(st.session_state.duel_result) >= len(rappers) * int((len(rappers)).bit_length()):
+if done >= total_needed:
     st.success("Tu as complété suffisamment de duels pour produire un classement fiable !")
     final_ranking = st.session_state.sorted_list
     df = pd.DataFrame({"Rang": list(range(1, len(final_ranking)+1)), "Rappeur": final_ranking})
